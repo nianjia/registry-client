@@ -121,7 +121,7 @@ struct TotalPackages {
 }
 #[derive(Deserialize)]
 struct Packages {
-    crates: Vec<Package>,
+    packages: Vec<Package>,
     meta: TotalPackages,
 }
 impl Registry {
@@ -141,27 +141,27 @@ impl Registry {
         &self.host
     }
 
-    pub fn add_owners(&mut self, krate: &str, owners: &[&str]) -> Result<String> {
+    pub fn add_owners(&mut self, pkg: &str, owners: &[&str]) -> Result<String> {
         let body = serde_json::to_string(&OwnersReq { users: owners })?;
-        let body = self.put(&format!("/crates/{}/owners", krate), body.as_bytes())?;
+        let body = self.put(&format!("/packages/{}/owners", pkg), body.as_bytes())?;
         assert!(serde_json::from_str::<OwnerResponse>(&body)?.ok);
         Ok(serde_json::from_str::<OwnerResponse>(&body)?.msg)
     }
 
-    pub fn remove_owners(&mut self, krate: &str, owners: &[&str]) -> Result<()> {
+    pub fn remove_owners(&mut self, pkg: &str, owners: &[&str]) -> Result<()> {
         let body = serde_json::to_string(&OwnersReq { users: owners })?;
-        let body = self.delete(&format!("/crates/{}/owners", krate), Some(body.as_bytes()))?;
+        let body = self.delete(&format!("/packages/{}/owners", pkg), Some(body.as_bytes()))?;
         assert!(serde_json::from_str::<OwnerResponse>(&body)?.ok);
         Ok(())
     }
 
-    pub fn list_owners(&mut self, krate: &str) -> Result<Vec<User>> {
-        let body = self.get(&format!("/crates/{}/owners", krate))?;
+    pub fn list_owners(&mut self, pkg: &str) -> Result<Vec<User>> {
+        let body = self.get(&format!("/packages/{}/owners", pkg))?;
         Ok(serde_json::from_str::<Users>(&body)?.users)
     }
 
-    pub fn publish(&mut self, krate: &NewPackage, tarball: &File) -> Result<Warnings> {
-        let json = serde_json::to_string(krate)?;
+    pub fn publish(&mut self, pkg: &NewPackage, tarball: &File) -> Result<Warnings> {
+        let json = serde_json::to_string(pkg)?;
         // Prepare the body. The format of the upload request is:
         //
         //      <le u32 of json>
@@ -193,11 +193,11 @@ impl Registry {
         let size = stat.len() as usize + header.len();
         let mut body = Cursor::new(header).chain(tarball);
 
-        let url = format!("{}/api/v1/crates/new", self.host);
+        let url = format!("{}/api/v1/packages/new", self.host);
 
         let token = match self.token.as_ref() {
             Some(s) => s,
-            None => bail!("no upload token found, please run `cargo login`"),
+            None => bail!("no upload token found, please run `nianjia login`"),
         };
         self.handle.put(true)?;
         self.handle.url(&url)?;
@@ -246,23 +246,23 @@ impl Registry {
     pub fn search(&mut self, query: &str, limit: u32) -> Result<(Vec<Package>, u32)> {
         let formatted_query = percent_encode(query.as_bytes(), QUERY_ENCODE_SET);
         let body = self.req(
-            &format!("/crates?q={}&per_page={}", formatted_query, limit),
+            &format!("/packages?q={}&per_page={}", formatted_query, limit),
             None,
             Auth::Unauthorized,
         )?;
 
-        let crates = serde_json::from_str::<Packages>(&body)?;
-        Ok((crates.crates, crates.meta.total))
+        let packages = serde_json::from_str::<Packages>(&body)?;
+        Ok((packages.packages, packages.meta.total))
     }
 
-    pub fn yank(&mut self, krate: &str, version: &str) -> Result<()> {
-        let body = self.delete(&format!("/crates/{}/{}/yank", krate, version), None)?;
+    pub fn yank(&mut self, pkg: &str, version: &str) -> Result<()> {
+        let body = self.delete(&format!("/packages/{}/{}/yank", pkg, version), None)?;
         assert!(serde_json::from_str::<R>(&body)?.ok);
         Ok(())
     }
 
-    pub fn unyank(&mut self, krate: &str, version: &str) -> Result<()> {
-        let body = self.put(&format!("/crates/{}/{}/unyank", krate, version), &[])?;
+    pub fn unyank(&mut self, pkg: &str, version: &str) -> Result<()> {
+        let body = self.put(&format!("/packages/{}/{}/unyank", pkg, version), &[])?;
         assert!(serde_json::from_str::<R>(&body)?.ok);
         Ok(())
     }
@@ -291,7 +291,7 @@ impl Registry {
         if authorized == Auth::Authorized {
             let token = match self.token.as_ref() {
                 Some(s) => s,
-                None => bail!("no upload token found, please run `cargo login`"),
+                None => bail!("no upload token found, please run `nianjia login`"),
             };
             headers.append(&format!("Authorization: {}", token))?;
         }
